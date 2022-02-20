@@ -9,4 +9,4 @@ const PublbicacaoSchema = new Schema ({
     likes : {type : Array, required : true, default : []},
 });
 
-export const PublicacaoModel = (mongoose.models.pulicacoes || mongoose.model('publicacoes', PublbicacaoSchema));
+export const PublicacaoModel = (mongoose.models.publicacoes || mongoose.model('publicacoes', PublbicacaoSchema));
