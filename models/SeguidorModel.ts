@@ -2,7 +2,7 @@ import mongoose, {Schema} from "mongoose";
 
 const SeguidorSchema = new Schema({
     // quem segue
-    usuarioLogadoId : {type : String, required : true},
+    usuarioId : {type : String, required : true},
     // quem está sendo seguido
     usuarioSeguidoId : {type : String, required : true},
 });
