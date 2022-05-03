@@ -1,13 +1,11 @@
-/* eslint-disable import/no-anonymous-default-export */
 import type {NextApiRequest, NextApiResponse} from 'next';
-import {conectarMongoDB} from  "../../middlewares/conectarMongoDB";
+import { conectarMongoDB } from '../../middlewares/conectarMongoDB';
 import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
+import type {LoginResposta} from '../../types/LoginResposta';
 import md5 from 'md5';
 import { UsuarioModel } from '../../models/UsuarioModel';
 import jwt from 'jsonwebtoken';
-import type {LoginResposta} from '../../types/LoginResposta';
 import { politicaCors } from '../../middlewares/politicaCors';
-
 
 const endpointLogin = async (
     req : NextApiRequest,
@@ -15,9 +13,8 @@ const endpointLogin = async (
 ) => {
 
     const {MINHA_CHAVE_JWT} = process.env;
-
     if(!MINHA_CHAVE_JWT){
-        res.status(500).json({erro : 'ENV JWT não informada'});
+        return res.status(500).json({erro : 'ENV Jwt nao informada'});
     }
 
     if(req.method === 'POST'){
@@ -25,18 +22,17 @@ const endpointLogin = async (
 
         const usuariosEncontrados = await UsuarioModel.find({email : login, senha : md5(senha)});
         if(usuariosEncontrados && usuariosEncontrados.length > 0){
-            const usuarioEncontrado = usuariosEncontrados[0];
+            const usuarioEncotrado = usuariosEncontrados[0];
 
-            const token = jwt.sign({_id : usuarioEncontrado._id}, MINHA_CHAVE_JWT);
-
+            const token = jwt.sign({_id : usuarioEncotrado._id}, MINHA_CHAVE_JWT);
             return res.status(200).json({
-                nome : usuarioEncontrado.nome, 
-                email : usuarioEncontrado.email, 
+                nome : usuarioEncotrado.nome, 
+                email : usuarioEncotrado.email, 
                 token});
         }
-        return res.status(400).json({erro : 'Usuário ou senha não encontrado'});
+        return res.status(400).json({erro : 'Usuario ou senha nao encontrado'});
     }
-    return res.status(405).json({erro : 'Método informado não é válido'});
+    return res.status(405).json({erro : 'Metodo informado nao e valido'});
 }
 
 export default politicaCors(conectarMongoDB(endpointLogin));

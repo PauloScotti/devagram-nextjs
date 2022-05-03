@@ -1,14 +1,14 @@
 import type {NextApiRequest, NextApiResponse} from 'next';
 import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
-import {validarTokeJWT} from '../../middlewares/validarTokenJWT';
+import {validarTokenJWT} from '../../middlewares/validarTokenJWT';
 import {conectarMongoDB} from '../../middlewares/conectarMongoDB';
 import { UsuarioModel } from '../../models/UsuarioModel';
 import nc from 'next-connect';
-import {upload, uploadImagemCosmic} from '../../services/uploadImagemCosmic';
+import {updload, uploadImagemCosmic} from '../../services/uploadImagemCosmic';
 import { politicaCors } from '../../middlewares/politicaCors';
 
 const handler = nc()
-    .use(upload.single('file'))
+    .use(updload.single('file'))
     .put(async(req : any, res : NextApiResponse<RespostaPadraoMsg>) => {
         try{
             const {userId} = req?.query;
@@ -44,6 +44,7 @@ const handler = nc()
         try{
             const {userId} = req?.query;
             const usuario = await UsuarioModel.findById(userId);
+            console.log('usuario', usuario);
             usuario.senha = null;
             return res.status(200).json(usuario);
         }catch(e){
@@ -59,4 +60,4 @@ export const config = {
     }
 }
 
-export default politicaCors(validarTokeJWT(conectarMongoDB(handler)));
+export default politicaCors(validarTokenJWT(conectarMongoDB(handler)));
