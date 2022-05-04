@@ -27,7 +27,7 @@ const handler = nc()
             const { descricao } = req.body;
 
             if (!descricao || descricao.length < 2) {
-                return res.status(400).json({ erro: 'Descição não é válida' });
+                return res.status(400).json({ erro: 'Descrição não é válida' });
             }
             if (!req.file || !req.file.originalname) {
                 return res.status(400).json({ erro: 'Imagem é obrigatória' });
