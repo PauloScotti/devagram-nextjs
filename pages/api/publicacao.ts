@@ -29,6 +29,9 @@ const handler = nc()
             if (!descricao || descricao.length < 2) {
                 return res.status(400).json({ erro: 'Descição não é válida' });
             }
+            if (!req.file || !req.file.originalname) {
+                return res.status(400).json({ erro: 'Imagem é obrigatória' });
+            }
 
             const image = await uploadImagemCosmic(req);
             const publicação = {
