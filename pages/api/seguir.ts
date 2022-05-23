@@ -27,7 +27,12 @@ const endpointSeguir = async (req : NextApiRequest, res : NextApiResponse<Respos
             const euJaSigoEsseUsuario = await SeguidorModel.find({usuarioId: usuarioLogado._id, usuarioSeguido : usuarioSeguido._id});
             if(euJaSigoEsseUsuario && euJaSigoEsseUsuario.length > 0){
                 // sinal que sigo o usuário
-                euJaSigoEsseUsuario.forEach(async(e : any) => await SeguidorModel.findByIdAndDelete({_id : e._id}));
+                
+                const seguidor = {
+                    usuarioId : usuarioLogado._id,
+                    usuarioSeguidoId : usuarioSeguido._id
+                };
+                await SeguidorModel.deleteOne(seguidor);
 
                 usuarioLogado.seguindo--;
                 await UsuarioModel.findByIdAndDelete({_id : usuarioLogado._id}, usuarioLogado);

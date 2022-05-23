@@ -41,7 +41,6 @@ const handler = nc()
                 data : new Date()
             }
 
-            usuario.publicacoes++;
             await PublicacaoModel.create(publicação);
 
             return res.status(200).json({ erro: 'Publicação criada com sucesso' });
