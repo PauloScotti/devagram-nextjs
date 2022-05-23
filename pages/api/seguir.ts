@@ -32,7 +32,7 @@ const endpointSeguir = async (req : NextApiRequest, res : NextApiResponse<Respos
                     usuarioId : usuarioLogado._id,
                     usuarioSeguidoId : usuarioSeguido._id
                 };
-                await SeguidorModel.deleteOne(seguidor);
+                await SeguidorModel.findByIdAndDelete(seguidor);
 
                 usuarioLogado.seguindo--;
                 await UsuarioModel.findByIdAndDelete({_id : usuarioLogado._id}, usuarioLogado);
