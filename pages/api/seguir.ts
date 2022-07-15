@@ -24,16 +24,16 @@ const endpointSeguir = async (req : NextApiRequest, res : NextApiResponse<Respos
                 return res.status(400).json({erro : 'Usuário a ser seguido não encontrado'});
             }
 
-            const euJaSigoEsseUsuario = await SeguidorModel.find({usuarioId: usuarioLogado._id, usuarioSeguido : usuarioSeguido._id});
+            const euJaSigoEsseUsuario = await SeguidorModel.find({usuarioId: usuarioLogado._id, usuarioSeguidoId : usuarioSeguido._id});
             if(euJaSigoEsseUsuario && euJaSigoEsseUsuario.length > 0){
                 // sinal que sigo o usuário
                 euJaSigoEsseUsuario.forEach(async(e : any) => await SeguidorModel.findByIdAndDelete({_id : e._id}));
 
                 usuarioLogado.seguindo--;
-                await UsuarioModel.findByIdAndDelete({_id : usuarioLogado._id}, usuarioLogado);
+                await UsuarioModel.findByIdAndUpdate({_id : usuarioLogado._id}, usuarioLogado);
 
                 usuarioSeguido.seguidores--;
-                await UsuarioModel.findByIdAndDelete({_id : usuarioSeguido._id}, usuarioSeguido);
+                await UsuarioModel.findByIdAndUpdate({_id : usuarioSeguido._id}, usuarioSeguido);
 
                 return res.status(200).json({msg : 'Deixou de seguir o usuário com sucesso'});
             } else {
