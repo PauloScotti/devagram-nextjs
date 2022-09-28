@@ -41,6 +41,9 @@ const handler = nc()
                 data : new Date()
             }
 
+            usuario.publicacoes++;
+            await UsuarioModel.findByIdAndUpdate({_id : usuario._id}, usuario);
+
             await PublicacaoModel.create(publicação);
 
             return res.status(200).json({ erro: 'Publicação criada com sucesso' });
