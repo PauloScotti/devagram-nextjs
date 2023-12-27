@@ -11,7 +11,7 @@
   "dependencies": {
     "@types/md5": "^2.3.2",
     "caniuse-lite": "^1.0.30001412",
-    "cosmicjs": "^4.1.2",
+    "cosmicjs": "^5.0.2",
     "jsonwebtoken": "^8.5.1",
     "md5": "^2.3.0",
     "moment": "^2.29.4",
