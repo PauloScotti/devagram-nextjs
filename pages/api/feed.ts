@@ -23,19 +23,7 @@ const feedEndpoint = async (req : NextApiRequest, res : NextApiResponse<Resposta
                     .find({idUsuario : usuario._id})
                     .sort({data : -1});
 
-                const result = [];
-                for (const publicacao of publicacoes) {
-                   const usuarioDaPublicacao = await UsuarioModel.findById(publicacao.idUsuario);
-                   if(usuarioDaPublicacao){
-                        const final = {...publicacao._doc, usuario : {
-                            nome : usuarioDaPublicacao.nome,
-                            avatar : usuarioDaPublicacao.avatar
-                        }};
-                        result.push(final);  
-                   }
-                }
-
-                return res.status(200).json(result);
+                return res.status(200).json(publicacoes);
             }else{
                 const {userId} = req.query;
                 const usuarioLogado = await UsuarioModel.findById(userId);
