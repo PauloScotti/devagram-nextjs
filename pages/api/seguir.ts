@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { conectarMongoDB } from "../../middlewares/conectarMongoDB";
 import { politicaCors } from "../../middlewares/politicaCors";
 import { validarTokeJWT } from "../../middlewares/validarTokenJWT";
-import { SeguidorModel } from "../../models/SeguidorModel";
 import { UsuarioModel } from "../../models/UsuarioModel";
 import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
 
@@ -18,38 +17,30 @@ const endpointSeguir = async (req : NextApiRequest, res : NextApiResponse<Respos
                 return res.status(400).json({erro : 'Usuário logado não encontrado'});
             }
 
-            // id do usuário a ser seguido
-            const usuarioSeguido = await UsuarioModel.findById(id);
-            if(!usuarioSeguido){
-                return res.status(400).json({erro : 'Usuário a ser seguido não encontrado'});
+            // id do usuario e ser seguidor - query
+            const usuarioASerSeguido = await UsuarioModel.findById(id);
+            if(!usuarioASerSeguido){
+                return res.status(400).json({ erro : 'Usuario a ser seguido nao encontrado'});
             }
 
-            const euJaSigoEsseUsuario = await SeguidorModel.find({usuarioId: usuarioLogado._id, usuarioSeguidoId : usuarioSeguido._id});
-            if(euJaSigoEsseUsuario && euJaSigoEsseUsuario.length > 0){
-                // sinal que sigo o usuário
-                euJaSigoEsseUsuario.forEach(async(e : any) => await SeguidorModel.findByIdAndDelete({_id : e._id}));
+            const indexDoUsuarioNoSeguido = usuarioASerSeguido.seguidores.findIndex((e : any) => e.toString() === usuarioLogado._id.toString());
 
-                usuarioLogado.seguindo--;
+            if(indexDoUsuarioNoSeguido != -1){
+                usuarioASerSeguido.seguidores.splice(indexDoUsuarioNoSeguido, 1);
+                await UsuarioModel.findByIdAndUpdate({_id : usuarioASerSeguido._id}, usuarioASerSeguido);
+
+                usuarioLogado.seguindo.splice(indexDoUsuarioNoSeguido, 1);
                 await UsuarioModel.findByIdAndUpdate({_id : usuarioLogado._id}, usuarioLogado);
 
-                usuarioSeguido.seguidores--;
-                await UsuarioModel.findByIdAndUpdate({_id : usuarioSeguido._id}, usuarioSeguido);
+                return res.status(200).json({msg : 'Deixou de seguir o usuario com sucesso'});
+            }else {
+                // se o index for -1 sinal q ele nao curte a foto
+                usuarioASerSeguido.seguidores.push(usuarioLogado._id);
+                await UsuarioModel.findByIdAndUpdate({_id : usuarioASerSeguido._id}, usuarioASerSeguido);
 
-                return res.status(200).json({msg : 'Deixou de seguir o usuário com sucesso'});
-            } else {
-                // sinal que não sigo o usuário
-                const seguidor = {
-                    usuarioId : usuarioLogado._id,
-                    usuarioSeguidoId : usuarioSeguido._id
-                };
-                await SeguidorModel.create(seguidor);
-
-                usuarioLogado.seguindo++;
+                usuarioLogado.seguindo.push(usuarioASerSeguido._id);
                 await UsuarioModel.findByIdAndUpdate({_id : usuarioLogado._id}, usuarioLogado);
-                
-                usuarioSeguido.seguidores++;
-                await UsuarioModel.findByIdAndUpdate({_id : usuarioSeguido._id}, usuarioSeguido);
-                
+
                 return res.status(200).json({msg : 'Usuário seguido com sucesso'});
             }
         }
