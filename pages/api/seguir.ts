@@ -34,7 +34,7 @@ const endpointSeguir = async (req : NextApiRequest, res : NextApiResponse<Respos
 
                 return res.status(200).json({msg : 'Deixou de seguir o usuario com sucesso'});
             }else {
-                // se o index for -1 sinal q ele nao curte a foto
+                // se o index for -1 sinal q ele nao segue o usuário
                 usuarioASerSeguido.seguidores.push(usuarioLogado._id);
                 await UsuarioModel.findByIdAndUpdate({_id : usuarioASerSeguido._id}, usuarioASerSeguido);
 
