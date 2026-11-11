@@ -1,67 +1,60 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { RespostaPadraoMsg } from "../../types/RespostaPadraoMsg";
-import {validarTokeJWT} from '../../middlewares/validarTokenJWT';
-import { conectarMongoDB } from "../../middlewares/conectarMongoDB";
-import { UsuarioModel } from "../../models/UsuarioModel";
-import { PublicacaoModel } from "../../models/PublicacaoModel";
-import { SeguidorModel } from "../../models/SeguidorModel";
-import { politicaCors } from "../../middlewares/politicaCors";
+import {
+  criarEndpoint,
+  ErroHttp,
+  RequisicaoAutenticada,
+  validar,
+} from '../../lib/endpoint';
+import { rotaAutenticada } from '../../lib/rotas';
+import { PublicacaoModel } from '../../models/PublicacaoModel';
+import { UsuarioModel } from '../../models/UsuarioModel';
+import { feedQuerySchema } from '../../schemas/publicacao';
 
-const feedEndpoint = async (req : NextApiRequest, res : NextApiResponse<RespostaPadraoMsg | any>) => {
-    try{
-        if(req.method === 'GET'){
-            if(req?.query?.id){
-                // agora q tenho o id do usuário
-                // como eu valido se o usuário é válido
-                const usuario = await UsuarioModel.findById(req?.query?.id);
-                if(!usuario){
-                    return res.status(400).json({erro : 'Usuário não encontrado'});
-                }
+const endpointFeed = criarEndpoint<RequisicaoAutenticada>({
+  GET: async (req, res) => {
+    const { id } = validar(feedQuerySchema, req.query);
 
-                // e como eu busco as publicações dele
-                const publicacoes = await PublicacaoModel
-                    .find({idUsuario : usuario._id})
-                    .sort({data : -1});
-
-                return res.status(200).json(publicacoes);
-            }else{
-                const {userId} = req.query;
-                const usuarioLogado = await UsuarioModel.findById(userId);
-                if(!usuarioLogado){
-                    return res.status(400).json({erro : 'Usuário não encontrado'});
-                }
-
-                const seguidores = await SeguidorModel.find({usuarioId : usuarioLogado._id});
-                const seguidoresIds = seguidores.map(s => s.usuarioSeguidoId);
-
-                const publicacoes = await PublicacaoModel.find({
-                    $or : [
-                        {idUsuario : usuarioLogado._id},
-                        {idUsuario : seguidoresIds}
-                    ]
-                })
-                .sort({data : -1});
-
-                const result = [];
-                for (const publicacao of publicacoes) {
-                   const usuarioDaPublicacao = await UsuarioModel.findById(publicacao.idUsuario);
-                   if(usuarioDaPublicacao){
-                        const final = {...publicacao._doc, usuario : {
-                            nome : usuarioDaPublicacao.nome,
-                            avatar : usuarioDaPublicacao.avatar
-                        }};
-                        result.push(final);  
-                   }
-                }
-
-                return res.status(200).json(result);
-            }
-        }
-        return res.status(405).json({erro : 'Metodo informado não é válido'});
-    }catch(e){
-        console.log(e);
+    if (id) {
+      if (!(await UsuarioModel.exists({ _id: id }))) {
+        throw new ErroHttp(400, 'Usuário não encontrado');
+      }
+      const publicacoes = await PublicacaoModel.find({ idUsuario: id }).sort({
+        data: -1,
+      });
+      return res.status(200).json(publicacoes);
     }
-    return res.status(400).json({erro : 'Não foi possível obter o feed'});
-}
 
-export default politicaCors(validarTokeJWT(conectarMongoDB(feedEndpoint)));
+    // Feed do usuário logado: as publicações dele e de quem ele segue.
+    const usuarioLogado = await UsuarioModel.findById(req.usuarioId)
+      .select('seguindo')
+      .lean<{ seguindo: unknown[] }>();
+    if (!usuarioLogado) {
+      throw new ErroHttp(400, 'Usuário não encontrado');
+    }
+    const autores = [req.usuarioId, ...usuarioLogado.seguindo.map(String)];
+
+    const publicacoes = await PublicacaoModel.find({
+      idUsuario: { $in: autores },
+    })
+      .sort({ data: -1 })
+      .lean<{ idUsuario: string }[]>();
+    const usuarios = await UsuarioModel.find({ _id: { $in: autores } })
+      .select('nome avatar')
+      .lean<{ _id: unknown; nome: string; avatar?: string }[]>();
+    const usuarioPorId = new Map(usuarios.map((u) => [String(u._id), u]));
+
+    const feed = publicacoes.flatMap((publicacao) => {
+      const autor = usuarioPorId.get(String(publicacao.idUsuario));
+      return autor
+        ? [
+            {
+              ...publicacao,
+              usuario: { nome: autor.nome, avatar: autor.avatar },
+            },
+          ]
+        : [];
+    });
+    return res.status(200).json(feed);
+  },
+});
+
+export default rotaAutenticada(endpointFeed);

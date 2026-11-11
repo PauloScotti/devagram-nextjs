@@ -1,50 +1,42 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { conectarMongoDB } from "../../middlewares/conectarMongoDB";
-import { politicaCors } from "../../middlewares/politicaCors";
-import { validarTokeJWT } from "../../middlewares/validarTokenJWT";
-import { PublicacaoModel } from "../../models/PublicacaoModel";
-import { UsuarioModel } from "../../models/UsuarioModel";
-import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
+import { Types } from 'mongoose';
+import {
+  criarEndpoint,
+  ErroHttp,
+  RequisicaoAutenticada,
+  validar,
+} from '../../lib/endpoint';
+import { rotaAutenticada } from '../../lib/rotas';
+import { PublicacaoModel } from '../../models/PublicacaoModel';
+import { idQuerySchema } from '../../schemas/comum';
 
-const likeEndpoint 
-    = async (req : NextApiRequest, res : NextApiResponse<RespostaPadraoMsg>) => {
+const endpointLikes = criarEndpoint<RequisicaoAutenticada>({
+  // Alterna: curte se ainda não curtiu, descurte se já curtiu.
+  PUT: async (req, res) => {
+    const { id } = validar(idQuerySchema, req.query);
 
-    try {
-        if(req.method === 'PUT'){
-            // id da Publicacao - checked
-            const {id} = req?.query;
-            const publicacao = await PublicacaoModel.findById(id);
-            if(!publicacao){
-                return res.status(400).json({erro : 'Publicação não encontrada'});
-            }
-
-            // id do usuario que ta curtindo a pub            
-            const {userId} = req?.query;
-            const usuario = await UsuarioModel.findById(userId);
-            if(!usuario){
-                return res.status(400).json({erro : 'Usuario não encontrada'});
-            }
-            
-            const indexDoUsuarioNoLike = publicacao.likes.findIndex((e : any) => e.toString() === usuario._id.toString());
-
-            // se o index for > -1 sinal q ele ja curte a foto
-            if(indexDoUsuarioNoLike != -1){
-                publicacao.likes.splice(indexDoUsuarioNoLike, 1);
-                await PublicacaoModel.findByIdAndUpdate({_id : publicacao._id}, publicacao);
-                return res.status(200).json({msg : 'Publicação descurtida com sucesso'});
-            }else {
-                // se o index for -1 sinal q ele nao curte a foto
-                publicacao.likes.push(usuario._id);
-                await PublicacaoModel.findByIdAndUpdate({_id : publicacao._id}, publicacao);
-                return res.status(200).json({msg : 'Publicação curtida com sucesso'});
-            }
-        }
-
-        return res.status(405).json({erro : 'Metodo informado não é válido'});
-    }catch(e){
-        console.log(e);
-        return res.status(500).json({erro : 'Ocorreu erro ao curtir/descurtir uma publicação'});
+    const publicacao = await PublicacaoModel.findById(id).select('likes');
+    if (!publicacao) {
+      throw new ErroHttp(400, 'Publicação não encontrada');
     }
-}
 
-export default politicaCors(validarTokeJWT(conectarMongoDB(likeEndpoint)));
+    const jaCurtiu = publicacao.likes.some(
+      (like: unknown) => String(like) === req.usuarioId,
+    );
+    // Curtidas antigas foram gravadas como ObjectId; as duas formas são removidas.
+    // $addToSet e $pull são atômicos: dois cliques simultâneos não duplicam o like.
+    const comoObjectId = new Types.ObjectId(req.usuarioId);
+    await PublicacaoModel.updateOne(
+      { _id: id },
+      jaCurtiu
+        ? { $pull: { likes: { $in: [req.usuarioId, comoObjectId] } } }
+        : { $addToSet: { likes: comoObjectId } },
+    );
+    return res.status(200).json({
+      msg: jaCurtiu
+        ? 'Publicação descurtida com sucesso'
+        : 'Publicação curtida com sucesso',
+    });
+  },
+});
+
+export default rotaAutenticada(endpointLikes);

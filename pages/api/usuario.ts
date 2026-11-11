@@ -1,62 +1,45 @@
-import type {NextApiRequest, NextApiResponse} from 'next';
-import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
-import {validarTokeJWT} from '../../middlewares/validarTokenJWT';
-import {conectarMongoDB} from '../../middlewares/conectarMongoDB';
+import {
+  criarEndpoint,
+  ErroHttp,
+  RequisicaoAutenticada,
+  validar,
+} from '../../lib/endpoint';
+import { rotaAutenticada } from '../../lib/rotas';
+import { enviarImagem, lerFormulario } from '../../lib/upload';
 import { UsuarioModel } from '../../models/UsuarioModel';
-import nc from 'next-connect';
-import {upload, uploadImagemCosmic} from '../../services/uploadImagemCosmic';
-import { politicaCors } from '../../middlewares/politicaCors';
+import { atualizarUsuarioSchema, CAMPOS_PUBLICOS } from '../../schemas/usuario';
 
-const handler = nc()
-    .use(upload.single('file'))
-    .put(async(req : any, res : NextApiResponse<RespostaPadraoMsg>) => {
-        try{
-            const {userId} = req?.query;
-            const usuario = await UsuarioModel.findById(userId);
-            
-            if(!usuario){
-                return res.status(400).json({erro : 'Usuario nao encontrado'});
-            }
+const endpointUsuario = criarEndpoint<RequisicaoAutenticada>({
+  GET: async (req, res) => {
+    const usuario = await UsuarioModel.findById(req.usuarioId).select(
+      CAMPOS_PUBLICOS,
+    );
+    if (!usuario) {
+      throw new ErroHttp(400, 'Usuário não encontrado');
+    }
+    return res.status(200).json(usuario);
+  },
 
-            const {nome} = req?.body;
-            if(nome && nome.length > 2){
-                usuario.nome = nome;
-            }
+  PUT: async (req, res) => {
+    await lerFormulario(req, res);
+    const { nome } = validar(atualizarUsuarioSchema, req.body);
 
-            const {file} = req;
-            if(file && file.originalname){
-                const image = await uploadImagemCosmic(req);
-                if(image && image.media && image.media.url){
-                    usuario.avatar = image.media.url;
-                } 
-            }
-
-            await UsuarioModel
-                .findByIdAndUpdate({_id : usuario._id}, usuario);
-
-            return res.status(200).json({msg : 'Usuario alterado com sucesos'});
-        }catch(e){
-            console.log(e);
-            return res.status(400).json({erro : 'Nao foi possivel atualizar usuario:' + e});
-        }
-    })
-    .get(async (req : NextApiRequest, res : NextApiResponse<RespostaPadraoMsg | any>) => {
-        try{
-            const {userId} = req?.query;
-            const usuario = await UsuarioModel.findById(userId);
-            usuario.senha = null;
-            return res.status(200).json(usuario);
-        }catch(e){
-            console.log(e);
-        }
-    
-        return res.status(400).json({erro : 'Nao foi possivel obter dados do usuario'})
+    const avatar = await enviarImagem(req, 'avatar');
+    const usuario = await UsuarioModel.findByIdAndUpdate(req.usuarioId, {
+      ...(nome && { nome }),
+      ...(avatar && { avatar }),
     });
+    if (!usuario) {
+      throw new ErroHttp(400, 'Usuário não encontrado');
+    }
+    return res.status(200).json({ msg: 'Usuário alterado com sucesso' });
+  },
+});
 
 export const config = {
-    api : {
-        bodyParser : false
-    }
-}
+  api: {
+    bodyParser: false,
+  },
+};
 
-export default politicaCors(validarTokeJWT(conectarMongoDB(handler)));
+export default rotaAutenticada(endpointUsuario);
