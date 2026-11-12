@@ -1,46 +1,35 @@
-import type {NextApiRequest, NextApiResponse} from 'next';
-import { conectarMongoDB } from '../../middlewares/conectarMongoDB';
-import { politicaCors } from '../../middlewares/politicaCors';
-import { validarTokeJWT } from '../../middlewares/validarTokenJWT';
+import {
+  criarEndpoint,
+  ErroHttp,
+  RequisicaoAutenticada,
+  validar,
+} from '../../lib/endpoint';
+import { rotaAutenticada } from '../../lib/rotas';
 import { PublicacaoModel } from '../../models/PublicacaoModel';
 import { UsuarioModel } from '../../models/UsuarioModel';
-import type {RespostaPadraoMsg} from '../../types/RespostaPadraoMsg';
+import { idQuerySchema } from '../../schemas/comum';
+import { comentarioSchema } from '../../schemas/publicacao';
 
-const comentarioEndpoint = async (req : NextApiRequest, res : NextApiResponse<RespostaPadraoMsg>) => {
-    try{
-        if(req.method === 'PUT'){
-            const {userId, id} = req.query;
-            const usuarioLogado = await UsuarioModel.findById(userId);
-            if(!usuarioLogado){
-                return res.status(400).json({erro : 'Usuário nao encontrado'});
-            }
-            
-            const publicacao =  await PublicacaoModel.findById(id);
-            if(!publicacao){
-                return res.status(400).json({erro : 'Publicação nao encontrada'});
-            }
+const endpointComentario = criarEndpoint<RequisicaoAutenticada>({
+  PUT: async (req, res) => {
+    const { id } = validar(idQuerySchema, req.query);
+    const { comentario } = validar(comentarioSchema, req.body);
 
-            if(!req.body || !req.body.comentario
-                || req.body.comentario.length < 2){
-                return res.status(400).json({erro : 'Comentário nao e válido'});
-            }
-
-            const comentario = {
-                usuarioId : usuarioLogado._id,
-                nome : usuarioLogado.nome,
-                comentario : req.body.comentario
-            }
-
-            publicacao.comentarios.push(comentario);
-            await PublicacaoModel.findByIdAndUpdate({_id : publicacao._id}, publicacao);
-            return res.status(200).json({msg : 'Comentário adicionado com sucesso'});
-        }
-        
-        return res.status(405).json({erro : 'Método informado nao e válido'});
-    }catch(e){
-        console.log(e);
-        return res.status(500).json({erro : 'Ocorreu erro ao adicionar comentário'});
+    const usuario = await UsuarioModel.findById(req.usuarioId).select('nome');
+    if (!usuario) {
+      throw new ErroHttp(400, 'Usuário não encontrado');
     }
-}
 
-export default politicaCors(validarTokeJWT(conectarMongoDB(comentarioEndpoint)));
+    const publicacao = await PublicacaoModel.findByIdAndUpdate(id, {
+      $push: {
+        comentarios: { usuarioId: usuario._id, nome: usuario.nome, comentario },
+      },
+    });
+    if (!publicacao) {
+      throw new ErroHttp(400, 'Publicação não encontrada');
+    }
+    return res.status(200).json({ msg: 'Comentário adicionado com sucesso' });
+  },
+});
+
+export default rotaAutenticada(endpointComentario);

@@ -1,34 +1,83 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Devagram — API
 
-## Getting Started
+API de uma rede social de fotos, no estilo Instagram: usuários publicam fotos, seguem outros usuários, curtem e comentam.
 
-First, run the development server:
+Construída sobre as API Routes do Next.js com MongoDB. Nasceu como projeto da formação Devaria e foi revisada para servir de referência: senhas com argon2, validação de entrada com zod, e documentação OpenAPI navegável.
+
+## Stack
+
+| Camada       | Tecnologia                                        |
+| ------------ | ------------------------------------------------- |
+| Runtime      | Node.js 22+, Next.js 16 (API Routes), TypeScript  |
+| Banco        | MongoDB com Mongoose 9                            |
+| Autenticação | JWT (HS256, validade de 7 dias), senhas em argon2 |
+| Validação    | zod 4                                             |
+| Documentação | OpenAPI 3.1 gerado dos schemas zod + Scalar       |
+| Imagens      | Cosmic (avatares e publicações)                   |
+| Testes       | Vitest                                            |
+
+## Como rodar
 
 ```bash
+npm install
+cp .env.example .env.local   # preencha os valores
 npm run dev
-# or
-yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A API sobe em `http://localhost:3000/api`. A documentação interativa fica em `http://localhost:3000/api/docs` (a raiz redireciona para ela) e o documento OpenAPI em `http://localhost:3000/api/openapi`.
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+### Variáveis de ambiente
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+| Variável                     | Obrigatória | Para quê                                                                  |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------- |
+| `DB_CONEXAO_STRING`          | sim         | String de conexão do MongoDB                                              |
+| `MINHA_CHAVE_JWT`            | sim         | Segredo que assina os tokens                                              |
+| `BUCKET_AVATARES`            | para upload | Slug do bucket de avatares no Cosmic                                      |
+| `CHAVE_GRAVACAO_AVATARES`    | para upload | Chave de escrita do bucket de avatares                                    |
+| `CHAVE_LEITURA_AVATARES`     | não         | Chave de leitura do bucket de avatares                                    |
+| `BUCKET_PUBLICACOES`         | para upload | Slug do bucket de publicações no Cosmic                                   |
+| `CHAVE_GRAVACAO_PUBLICACOES` | para upload | Chave de escrita do bucket de publicações                                 |
+| `CHAVE_LEITURA_PUBLICACOES`  | não         | Chave de leitura do bucket de publicações                                 |
+| `CORS_ORIGENS`               | não         | Origens aceitas, separadas por vírgula. Sem ela, qualquer origem é aceita |
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+## Rotas
 
-## Learn More
+| Rota              | Método                 | O que faz                                                    |
+| ----------------- | ---------------------- | ------------------------------------------------------------ |
+| `/api/login`      | POST                   | Entrar e receber o token (pública)                           |
+| `/api/cadastro`   | POST                   | Criar conta, com avatar opcional (pública)                   |
+| `/api/usuario`    | GET, PUT               | Ver e atualizar o próprio cadastro                           |
+| `/api/pesquisa`   | GET                    | Buscar usuários por nome ou e-mail, ou obter um por id       |
+| `/api/feed`       | GET                    | Feed de quem o usuário segue, ou publicações de um usuário   |
+| `/api/publicacao` | POST                   | Publicar uma foto                                            |
+| `/api/comentario` | PUT                    | Comentar em uma publicação                                   |
+| `/api/likes`      | PUT                    | Curtir ou descurtir uma publicação                           |
+| `/api/seguir`     | PUT                    | Seguir ou deixar de seguir um usuário                        |
 
-To learn more about Next.js, take a look at the following resources:
+Fora login e cadastro, todas esperam `Authorization: Bearer <token>`. Cadastro, atualização de usuário e publicação usam `multipart/form-data`; as demais usam JSON. Corpos, parâmetros e respostas de cada rota estão em `/api/docs`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Estrutura
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+```
+lib/          regras reutilizáveis: senha, token, upload, OpenAPI
+middlewares/  CORS, conexão com o banco e token
+models/       modelos do Mongoose
+pages/api/    uma rota por arquivo
+schemas/      schemas zod (validação e origem da documentação)
+tests/        testes unitários
+```
 
-## Deploy on Vercel
+## Testes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm test
+npm run typecheck
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## Segurança
+
+- Senhas gravadas com argon2id. Contas antigas, em MD5, continuam entrando e têm a senha regravada em argon2 no primeiro login.
+- Toda entrada passa por um schema zod: campos desconhecidos são descartados e objetos no lugar de texto são rejeitados, o que fecha a injeção de operadores do MongoDB.
+- Nenhuma rota devolve a senha, nem como hash.
+- Upload aceita só imagens de até 5 MB.
+- Erros inesperados respondem com mensagem genérica; o detalhe fica no log do servidor.
